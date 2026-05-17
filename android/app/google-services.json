@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "582961868048",
+    "project_id": "keuanganharian-49e06",
+    "storage_bucket": "keuanganharian-49e06.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:582961868048:android:c278fc7c31cd8d9b218995",
+        "android_client_info": {
+          "package_name": "com.ucore.keuangan_harian"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAA-Wysiw3Y5IJrgRoTJiSGf7VrXPuiv5I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

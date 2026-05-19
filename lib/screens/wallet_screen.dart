@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:keuangan_harian/screens/transfer_history_screen.dart';
+import 'package:keuangan_harian/screens/transfer_screen.dart';
 import '../models/wallet_model.dart';
 import '../services/wallet_service.dart';
 
@@ -326,6 +328,25 @@ class _WalletScreenState extends State<WalletScreen> {
             icon: const Icon(Icons.add),
             onPressed: () => _showAddWalletDialog(),
           ),
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Riwayat Transfer',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => TransferHistoryScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.swap_horiz),
+            tooltip: 'Transfer',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const TransferScreen(initialFromWallet: null),
+              ),
+            ),
+  ),
+
         ],
       ),
       body: StreamBuilder<List<WalletModel>>(
@@ -425,41 +446,54 @@ class _WalletScreenState extends State<WalletScreen> {
                         ),
                       )
                     : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
                         itemCount: wallets.length,
                         itemBuilder: (context, index) {
                           final wallet = wallets[index];
                           return Slidable(
+                            
                             endActionPane: ActionPane(
                               motion: const ScrollMotion(),
+                              extentRatio: 0.40,
                               children: [
                                 // Edit
+                                
                                 SlidableAction(
                                   onPressed: (_) => _showAddWalletDialog(wallet: wallet),
                                   backgroundColor: Colors.blue,
                                   foregroundColor: Colors.white,
                                   icon: Icons.edit,
-                                  label: 'Edit',
-                                  borderRadius: const BorderRadius.horizontal(
-                                    left: Radius.circular(12),
-                                  ),
+                                  
+                                  flex: 1, // ← Bagi ruang sama rata
                                 ),
                                 // Delete
+                                SlidableAction(
+                                  onPressed: (_) => TransferScreen(initialFromWallet: wallet),
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.purple,
+                                  icon: Icons.swap_horiz,
+                                  
+                                  flex: 1, // ← Bagi ruang sama rata
+                               
+                                ),
                                 SlidableAction(
                                   onPressed: (_) => _deleteWallet(wallet),
                                   backgroundColor: Colors.red,
                                   foregroundColor: Colors.white,
                                   icon: Icons.delete,
-                                  label: 'Hapus',
-                                  borderRadius: const BorderRadius.horizontal(
-                                    right: Radius.circular(12),
-                                  ),
+                                  
+                                  flex: 1, // ← Bagi ruang sama rata
+                               
                                 ),
+                                
+                                
                               ],
+                              
                             ),
+                            
                             child: Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(16),
+                               margin: const EdgeInsets.only(bottom: 12),  // ← MARGIN BOTTOM DI SINI
+                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(12),

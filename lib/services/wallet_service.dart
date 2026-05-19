@@ -75,4 +75,22 @@ class WalletService {
     if (!doc.exists) return null;
     return WalletModel.fromFirestore(doc);
   }
+
+    /// Cek apakah wallet memiliki saldo cukup
+  Future<bool> hasEnoughBalance(String walletId, double amount) async {
+    final wallet = await getWalletById(walletId);
+    return wallet != null && wallet.balance >= amount;
+  }
+
+  /// Get multiple wallets by IDs (untuk dropdown transfer)
+  Future<List<WalletModel>> getWalletsByIds(List<String> ids) async {
+    if (ids.isEmpty) return [];
+    
+    final snapshots = await _firestore
+        .collection(_collection)
+        .where(FieldPath.documentId, whereIn: ids)
+        .get();
+    
+    return snapshots.docs.map((doc) => WalletModel.fromFirestore(doc)).toList();
+  }
 }

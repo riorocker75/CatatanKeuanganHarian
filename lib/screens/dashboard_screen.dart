@@ -19,6 +19,7 @@ import 'transaction_detail_screen.dart';
 import 'settings_screen.dart';
 import 'wallet_screen.dart';
 
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -115,7 +116,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       IconButton(
                         icon: const Icon(Icons.logout),
                         onPressed: () async {
-                          await _authService.logout();
+                          await _authService.logout(context);
                           if (mounted) {
                             Navigator.pushAndRemoveUntil(
                               context,

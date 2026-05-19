@@ -285,16 +285,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 items: [
-                  const DropdownMenuItem(
-                    value: null,
-                    child: Row(
-                      children: [
-                        Icon(Icons.money, color: Colors.green),
-                        SizedBox(width: 8),
-                        Text('Cash (Tunai)'),
-                      ],
-                    ),
-                  ),
+                  // const DropdownMenuItem(
+                  //   value: null,
+                  //   child: Row(
+                  //     children: [
+                  //       Icon(Icons.money, color: Colors.green),
+                  //       SizedBox(width: 8),
+                  //       Text('Cash (Tunai)'),
+                  //     ],
+                  //   ),
+                  // ),
                   ..._wallets.map((wallet) => DropdownMenuItem(
                     value: wallet.id,
                     child: Row(

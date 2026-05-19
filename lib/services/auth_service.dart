@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
-
+import 'package:flutter/material.dart';
+import 'package:keuangan_harian/screens/auth/login_screen.dart';
+import '../services/cache_service.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -34,9 +36,20 @@ class AuthService {
   }
 
   // Logout
-  Future<void> logout() async {
+  Future<void> logout(BuildContext context) async {
+    //    await CacheService.clearAllOnLogout();
+    // await _auth.signOut();
     await _auth.signOut();
+    
+    if (context.mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
   }
+
+  
 
   // Reset password
   Future<void> resetPassword(String email) async {

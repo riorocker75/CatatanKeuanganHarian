@@ -468,7 +468,11 @@ class _WalletScreenState extends State<WalletScreen> {
                                 ),
                                 // Delete
                                 SlidableAction(
-                                  onPressed: (_) => TransferScreen(initialFromWallet: wallet),
+                                  onPressed: (_) => Navigator.push(context,
+                                     MaterialPageRoute(
+                                  builder: (_) => TransferScreen(initialFromWallet: wallet),
+                                ),
+                              ),
                                   backgroundColor: Colors.white,
                                   foregroundColor: Colors.purple,
                                   icon: Icons.swap_horiz,

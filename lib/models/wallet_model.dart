@@ -26,17 +26,30 @@ class WalletModel {
 
   factory WalletModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    final rawType = (data['type'] ?? 'cash').toString().toLowerCase().trim();
     return WalletModel(
       id: doc.id,
       userId: data['userId'] ?? '',
       name: data['name'] ?? '',
-      type: data['type'] ?? 'cash',
+      type: rawType,
       balance: (data['balance'] ?? 0).toDouble(),
       accountNumber: data['accountNumber'],
       bankName: data['bankName'],
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       isDefault: data['isDefault'] ?? false,
     );
+  }
+
+// wallet_model.dart
+bool get supportsOverdraft {
+  final normalizedType = type.toLowerCase().trim();
+  return normalizedType != 'bank';
+}
+
+  /// Cek apakah bisa transfer/withdraw amount tertentu
+  bool canTransfer(double amount) {
+    if (supportsOverdraft) return true; // cash & e-wallet bebas
+    return balance >= amount; // bank wajib cukup
   }
 
   Map<String, dynamic> toFirestore() {

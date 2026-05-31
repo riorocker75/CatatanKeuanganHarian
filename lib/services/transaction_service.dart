@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/transaction_model.dart';
 import 'wallet_service.dart';
+import '../models/monthly_summary_model.dart';
 
 class TransactionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -144,6 +145,8 @@ class TransactionService {
     };
   }
 
+
+
   // Tambahkan method ini ke class TransactionService
 
 Stream<List<TransactionModel>> getTransactionsByDateRange({
@@ -202,4 +205,93 @@ Stream<List<TransactionModel>> getTransactionsByDateRange({
       'balance': income - expense,
     };
   }
+  /// Stream semua transaksi user (untuk grouping manual)
+  Stream<List<TransactionModel>> getAllUserTransactions(String userId) {
+    return _firestore
+        .collection(_collection)
+        .where('userId', isEqualTo: userId)
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => TransactionModel.fromFirestore(doc))
+            .toList());
+  }
+
+  /// Get monthly summaries (grouping by month)
+  Stream<List<MonthlySummaryModel>> getMonthlySummaries(String userId) {
+    return _firestore
+        .collection(_collection)
+        .where('userId', isEqualTo: userId)
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          final transactions = snapshot.docs
+              .map((doc) => TransactionModel.fromFirestore(doc))
+              .toList();
+
+          // Group by year-month
+          final Map<String, List<TransactionModel>> grouped = {};
+          for (var t in transactions) {
+            final key = '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}';
+            grouped.putIfAbsent(key, () => []);
+            grouped[key]!.add(t);
+          }
+
+          // Convert to summaries
+          final summaries = grouped.entries.map((entry) {
+            final txs = entry.value;
+            final date = txs.first.date;
+            
+            double income = 0;
+            double expense = 0;
+            for (var t in txs) {
+              if (t.type == TransactionType.income) {
+                income += t.amount;
+              } else {
+                expense += t.amount;
+              }
+            }
+
+            return MonthlySummaryModel(
+              year: date.year,
+              month: date.month,
+              totalIncome: income,
+              totalExpense: expense,
+              transactionCount: txs.length,
+            );
+          }).toList();
+
+          // Sort by date descending
+          summaries.sort((a, b) {
+            if (a.year != b.year) return b.year - a.year;
+            return b.month - a.month;
+          });
+
+          return summaries;
+        });
+  }
+  
+   /// Get transactions for specific month
+  Stream<List<TransactionModel>> getTransactionsByMonth(
+    String userId,
+    int year,
+    int month,
+  ) {
+    final startDate = DateTime(year, month, 1);
+    final endDate = DateTime(year, month + 1, 0, 23, 59, 59);
+
+    return _firestore
+        .collection(_collection)
+        .where('userId', isEqualTo: userId)
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+        .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => TransactionModel.fromFirestore(doc))
+            .toList());
+  }
+
+ 
+  // end of class
 }

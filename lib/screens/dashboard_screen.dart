@@ -8,7 +8,8 @@ import '../services/transaction_service.dart';
 // import '../services/budget_service.dart';
 import '../services/wallet_service.dart';
 import '../widgets/transaction_card.dart';
-import '../widgets/summary_card.dart';
+// import '../widgets/summary_card.dart'; // tidak dipakai lagi, digantikan BalanceSwipeCard
+import '../widgets/balance_swipe_card.dart';
 // import '../widgets/budget_progress_card.dart';
 import '../widgets/chart_widget.dart';
 import 'auth/login_screen.dart';
@@ -133,110 +134,77 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // Wallet Summary - FutureBuilder (lebih ringan)
+          // Kartu gabungan: Saldo Hari Ini (+ pemasukan/pengeluaran inline)
+          // -> geser ke kanan -> Total Saldo Dompet.
+          // Wallet diambil sekali (FutureBuilder), transaksi hari ini real-time (StreamBuilder).
           SliverToBoxAdapter(
             child: FutureBuilder<List<WalletModel>>(
               future: _walletService.getUserWallets(userId).first,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-
-                final wallets = snapshot.data!;
+              builder: (context, walletSnapshot) {
+                final wallets = walletSnapshot.data ?? [];
                 final totalBalance = wallets.fold(0.0, (sum, w) => sum + w.balance);
 
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const WalletScreen()),
+                return StreamBuilder<List<TransactionModel>>(
+                  stream: _transactionService.getTodayTransactions(userId),
+                  builder: (context, txSnapshot) {
+                    double todayIncome = 0;
+                    double todayExpense = 0;
+
+                    if (txSnapshot.hasData) {
+                      for (var t in txSnapshot.data!) {
+                        if (t.type == TransactionType.income) {
+                          todayIncome += t.amount;
+                        } else {
+                          todayExpense += t.amount;
+                        }
+                      }
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: BalanceSwipeCard(
+                        todayIncome: todayIncome,
+                        todayExpense: todayExpense,
+                        totalWalletBalance: totalBalance,
+                        walletCount: wallets.length,
+                        onTapWallet: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const WalletScreen()),
+                          );
+                        },
+                        // tambahan code untuk gesture 
+                         onTapIncome: () {
+                            // Navigasi langsung ke detail pemasukan
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const TransactionDetailScreen(
+                                  title: 'Pemasukan',
+                                  color: Colors.green,
+                                  icon: Icons.trending_up,
+                                  filterType: TransactionType.income,
+                                ),
+                              ),
+                            );
+                          },
+                          onTapExpense: () {
+                            // Navigasi langsung ke detail pengeluaran
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const TransactionDetailScreen(
+                                  title: 'Pengeluaran',
+                                  color: Colors.red,
+                                  icon: Icons.trending_down,
+                                  filterType: TransactionType.expense,
+                                ),
+                              ),
+                            );
+                          },
+                      ),
                     );
                   },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.purple.shade600, Colors.purple.shade400],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.purple.shade200,
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(
-                                    Icons.account_balance_wallet,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                const Text(
-                                  'Total Saldo Dompet',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text(
-                                'Lihat Detail',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Rp ${totalBalance.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${wallets.length} dompet aktif',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 );
               },
             ),
@@ -273,107 +241,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           //     },
           //   ),
           // ),
-
-          // Summary Cards - StreamBuilder (ini yang perlu real-time)
-          SliverToBoxAdapter(
-            child: StreamBuilder<List<TransactionModel>>(
-              stream: _transactionService.getTodayTransactions(userId),
-              builder: (context, snapshot) {
-                double todayIncome = 0;
-                double todayExpense = 0;
-
-                if (snapshot.hasData) {
-                  for (var t in snapshot.data!) {
-                    if (t.type == TransactionType.income) {
-                      todayIncome += t.amount;
-                    } else {
-                      todayExpense += t.amount;
-                    }
-                  }
-                }
-
-                return Column(
-                  children: [
-                    SummaryCard(
-                      title: 'Total Pengeluaran Hari Ini',
-                      amount: todayExpense,
-                      icon: Icons.trending_down,
-                      color: Colors.red.shade400,
-                      isExpense: true,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const TransactionDetailScreen(
-                              title: 'Pengeluaran',
-                              color: Colors.red,
-                              icon: Icons.trending_down,
-                              filterType: TransactionType.expense,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: SummaryCard(
-                              title: 'Pemasukan',
-                              amount: todayIncome,
-                              icon: Icons.trending_up,
-                              color: Colors.green.shade400,
-                              isExpense: false,
-                              isSmall: true,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const TransactionDetailScreen(
-                                      title: 'Pemasukan',
-                                      color: Colors.green,
-                                      icon: Icons.trending_up,
-                                      filterType: TransactionType.income,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: SummaryCard(
-                              title: 'Saldo',
-                              amount: todayIncome - todayExpense,
-                              icon: Icons.account_balance_wallet,
-                              color: Colors.blue.shade400,
-                              isExpense: false,
-                              isSmall: true,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const TransactionDetailScreen(
-                                      title: 'Semua Transaksi',
-                                      color: Colors.blue,
-                                      icon: Icons.account_balance_wallet,
-                                      filterType: null,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
 
           // Chart Widget
           SliverToBoxAdapter(

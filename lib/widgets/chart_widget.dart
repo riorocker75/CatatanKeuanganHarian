@@ -15,22 +15,35 @@ class ChartWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     if (transactions.isEmpty) {
       return Container(
-        height: 200,
+        height: 180,
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(12),
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          ),
         ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.show_chart, size: 48, color: Colors.grey.shade300),
+              Icon(
+                Icons.ssid_chart_rounded,
+                size: 38,
+                color: isDark ? Colors.white24 : Colors.grey.shade300,
+              ),
               const SizedBox(height: 8),
               Text(
-                'Tidak ada data',
-                style: TextStyle(color: Colors.grey.shade500),
+                'Belum ada data pengeluaran',
+                style: TextStyle(
+                  color: isDark ? Colors.white38 : Colors.grey.shade500,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -39,18 +52,27 @@ class ChartWidget extends StatelessWidget {
     }
 
     return Container(
-      height: 220,
-      padding: const EdgeInsets.all(16),
+      height: 200,
+      padding: const EdgeInsets.fromLTRB(16, 16, 20, 10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
-      child: isWeekly ? _buildWeeklyChart() : _buildMonthlyChart(),
+      child: isWeekly ? _buildWeeklyChart(isDark) : _buildMonthlyChart(isDark),
     );
   }
 
-  Widget _buildWeeklyChart() {
+  Widget _buildWeeklyChart(bool isDark) {
     final now = DateTime.now();
     final weekDays = List.generate(7, (i) {
       return now.subtract(Duration(days: 6 - i));
@@ -70,17 +92,36 @@ class ChartWidget extends StatelessWidget {
     }).toList();
 
     final maxY = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
-    final roundedMaxY = ((maxY / 10000).ceil() * 10000).toDouble();
+    final roundedMaxY = maxY > 0 ? ((maxY / 10000).ceil() * 10000).toDouble() * 1.2 : 50000.0;
+
+    const primaryColor = Color(0xFF10B981);
 
     return LineChart(
       LineChartData(
+        lineTouchData: LineTouchData(
+          enabled: true,
+          touchTooltipData: LineTouchTooltipData(
+            tooltipRoundedRadius: 10,
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((spot) {
+                final day = weekDays[spot.x.toInt()];
+                final dayStr = DateFormat('E, dd MMM', 'id_ID').format(day);
+                final amountStr = 'Rp ${spot.y.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
+                return LineTooltipItem(
+                  '$dayStr\n$amountStr',
+                  const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                );
+              }).toList();
+            },
+          ),
+        ),
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          horizontalInterval: roundedMaxY > 0 ? roundedMaxY / 4 : 10000,
+          horizontalInterval: roundedMaxY > 0 ? roundedMaxY / 3 : 20000,
           getDrawingHorizontalLine: (value) {
             return FlLine(
-              color: Colors.grey.shade200,
+              color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
               strokeWidth: 1,
             );
           },
@@ -92,16 +133,23 @@ class ChartWidget extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              reservedSize: 24,
               getTitlesWidget: (value, meta) {
                 final index = value.toInt();
                 if (index < 0 || index >= weekDays.length) return const SizedBox.shrink();
+                final day = weekDays[index];
+                final isToday = day.day == now.day && day.month == now.month && day.year == now.year;
+
                 return Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    DateFormat('E', 'id_ID').format(weekDays[index]).substring(0, 3),
+                    isToday ? 'Hari ini' : DateFormat('E', 'id_ID').format(day).substring(0, 3),
                     style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 11,
+                      color: isToday
+                          ? primaryColor
+                          : (isDark ? Colors.white54 : Colors.grey.shade600),
+                      fontSize: 10,
+                      fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
                     ),
                   ),
                 );
@@ -111,13 +159,14 @@ class ChartWidget extends StatelessWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 60,
+              reservedSize: 42,
               getTitlesWidget: (value, meta) {
+                if (value == 0) return const SizedBox.shrink();
                 return Text(
                   _formatCompactNumber(value),
                   style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 10,
+                    color: isDark ? Colors.white38 : Colors.grey.shade500,
+                    fontSize: 9,
                   ),
                 );
               },
@@ -128,28 +177,36 @@ class ChartWidget extends StatelessWidget {
         minX: 0,
         maxX: 6,
         minY: 0,
-        maxY: roundedMaxY > 0 ? roundedMaxY : 10000,
+        maxY: roundedMaxY,
         lineBarsData: [
           LineChartBarData(
             spots: spots,
             isCurved: true,
-            color: Colors.green.shade600,
+            curveSmoothness: 0.35,
+            color: primaryColor,
             barWidth: 3,
             isStrokeCapRound: true,
             dotData: FlDotData(
               show: true,
               getDotPainter: (spot, percent, barData, index) {
                 return FlDotCirclePainter(
-                  radius: 4,
-                  color: Colors.green.shade600,
+                  radius: 3.5,
+                  color: primaryColor,
                   strokeWidth: 2,
-                  strokeColor: Colors.white,
+                  strokeColor: isDark ? const Color(0xFF1E293B) : Colors.white,
                 );
               },
             ),
             belowBarData: BarAreaData(
               show: true,
-              color: Colors.green.shade100.withOpacity(0.3),
+              gradient: LinearGradient(
+                colors: [
+                  primaryColor.withOpacity(0.28),
+                  primaryColor.withOpacity(0.0),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
             ),
           ),
         ],
@@ -157,9 +214,11 @@ class ChartWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildMonthlyChart() {
+  Widget _buildMonthlyChart(bool isDark) {
     final now = DateTime.now();
     final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    const primaryColor = Color(0xFF10B981);
+
     final barGroups = List.generate(daysInMonth, (index) {
       final day = index + 1;
       final dayTransactions = transactions.where((t) =>
@@ -175,9 +234,9 @@ class ChartWidget extends StatelessWidget {
         barRods: [
           BarChartRodData(
             toY: total,
-            color: Colors.green.shade600,
-            width: 8,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+            color: primaryColor,
+            width: 6,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
           ),
         ],
       );
@@ -186,17 +245,17 @@ class ChartWidget extends StatelessWidget {
     final maxY = barGroups
         .map((g) => g.barRods.first.toY)
         .reduce((a, b) => a > b ? a : b);
-    final roundedMaxY = ((maxY / 10000).ceil() * 10000).toDouble();
+    final roundedMaxY = maxY > 0 ? ((maxY / 10000).ceil() * 10000).toDouble() * 1.2 : 50000.0;
 
     return BarChart(
       BarChartData(
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          horizontalInterval: roundedMaxY > 0 ? roundedMaxY / 4 : 10000,
+          horizontalInterval: roundedMaxY > 0 ? roundedMaxY / 3 : 20000,
           getDrawingHorizontalLine: (value) {
             return FlLine(
-              color: Colors.grey.shade200,
+              color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
               strokeWidth: 1,
             );
           },
@@ -209,14 +268,14 @@ class ChartWidget extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               getTitlesWidget: (value, meta) {
-                if (value % 5 != 0) return const SizedBox.shrink();
+                if (value % 5 != 0 && value != 1) return const SizedBox.shrink();
                 return Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     value.toInt().toString(),
                     style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 11,
+                      color: isDark ? Colors.white54 : Colors.grey.shade600,
+                      fontSize: 10,
                     ),
                   ),
                 );
@@ -226,13 +285,14 @@ class ChartWidget extends StatelessWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 60,
+              reservedSize: 42,
               getTitlesWidget: (value, meta) {
+                if (value == 0) return const SizedBox.shrink();
                 return Text(
                   _formatCompactNumber(value),
                   style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 10,
+                    color: isDark ? Colors.white38 : Colors.grey.shade500,
+                    fontSize: 9,
                   ),
                 );
               },
@@ -241,7 +301,7 @@ class ChartWidget extends StatelessWidget {
         ),
         borderData: FlBorderData(show: false),
         barGroups: barGroups,
-        maxY: roundedMaxY > 0 ? roundedMaxY : 10000,
+        maxY: roundedMaxY,
       ),
     );
   }
@@ -271,14 +331,14 @@ class CategoryPieChart extends StatelessWidget {
     }
 
     final colors = [
-      Colors.red.shade400,
-      Colors.orange.shade400,
-      Colors.yellow.shade600,
-      Colors.green.shade400,
-      Colors.blue.shade400,
-      Colors.purple.shade400,
-      Colors.pink.shade400,
-      Colors.teal.shade400,
+      const Color(0xFFEF4444),
+      const Color(0xFFF97316),
+      const Color(0xFFF59E0B),
+      const Color(0xFF10B981),
+      const Color(0xFF06B6D4),
+      const Color(0xFF3B82F6),
+      const Color(0xFF8B5CF6),
+      const Color(0xFFEC4899),
     ];
 
     final total = categoryData.values.fold(0.0, (a, b) => a + b);
@@ -287,7 +347,7 @@ class CategoryPieChart extends StatelessWidget {
     return Column(
       children: [
         SizedBox(
-          height: 200,
+          height: 190,
           child: PieChart(
             PieChartData(
               sections: categoryData.entries.map((entry) {
@@ -298,49 +358,41 @@ class CategoryPieChart extends StatelessWidget {
                 return PieChartSectionData(
                   color: color,
                   value: entry.value,
-                  title: percentage >= 5 ? '${percentage.toStringAsFixed(1)}%' : '',
-                  radius: 80,
+                  title: percentage >= 8 ? '${percentage.toStringAsFixed(0)}%' : '',
+                  radius: 58,
                   titleStyle: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
-                  badgeWidget: percentage >= 5
-                      ? Icon(
-                          _getCategoryIcon(entry.key),
-                          color: Colors.white,
-                          size: 16,
-                        )
-                      : null,
-                  badgePositionPercentageOffset: 0.8,
                 );
               }).toList(),
               sectionsSpace: 2,
-              centerSpaceRadius: 40,
-              centerSpaceColor: Colors.grey.shade50,
+              centerSpaceRadius: 36,
+              centerSpaceColor: Colors.transparent,
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         Wrap(
-          spacing: 16,
-          runSpacing: 8,
+          spacing: 12,
+          runSpacing: 6,
           children: categoryData.keys.toList().asMap().entries.map((entry) {
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 12,
-                  height: 12,
+                  width: 10,
+                  height: 10,
                   decoration: BoxDecoration(
                     color: colors[entry.key % colors.length],
                     shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 5),
                 Text(
                   entry.value,
-                  style: const TextStyle(fontSize: 12),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
                 ),
               ],
             );
@@ -348,20 +400,5 @@ class CategoryPieChart extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  IconData _getCategoryIcon(String category) {
-    final icons = {
-      'Makanan': Icons.restaurant,
-      'Transportasi': Icons.directions_car,
-      'Belanja': Icons.shopping_bag,
-      'Hiburan': Icons.movie,
-      'Kesehatan': Icons.local_hospital,
-      'Pendidikan': Icons.school,
-      'Gaji': Icons.work,
-      'Investasi': Icons.trending_up,
-      'Lainnya': Icons.category,
-    };
-    return icons[category] ?? Icons.category;
   }
 }

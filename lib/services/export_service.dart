@@ -24,89 +24,107 @@ class ExportService {
     }
 
     pdf.addPage(
-      pw.Page(
+      pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        build: (pw.Context context) {
+        margin: const pw.EdgeInsets.all(32),
+        header: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text(
-                title ?? 'Laporan Keuangan',
-                style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
-              ),
-              pw.SizedBox(height: 20),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    title ?? 'Laporan Keuangan',
+                    style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: PdfColors.teal800),
+                  ),
+                  pw.Text(
+                    'Hal. ${context.pageNumber} / ${context.pagesCount}',
+                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 8),
+              pw.Divider(thickness: 1, color: PdfColors.teal400),
+              pw.SizedBox(height: 12),
+            ],
+          );
+        },
+        build: (pw.Context context) {
+          return [
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: pw.BorderRadius.circular(8),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                 children: [
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('Total Pemasukan:', style: pw.TextStyle(fontSize: 12)),
-                      pw.Text(currencyFormat.format(totalIncome), 
-                        style: pw.TextStyle(fontSize: 14, color: PdfColors.green)),
+                      pw.Text('Total Pemasukan', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+                      pw.Text(currencyFormat.format(totalIncome),
+                          style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.green700)),
                     ],
                   ),
                   pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('Total Pengeluaran:', style: pw.TextStyle(fontSize: 12)),
+                      pw.Text('Total Pengeluaran', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
                       pw.Text(currencyFormat.format(totalExpense),
-                        style: pw.TextStyle(fontSize: 14, color: PdfColors.red)),
+                          style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.red700)),
                     ],
                   ),
-                ],
-              ),
-              pw.SizedBox(height: 10),
-              pw.Divider(),
-              pw.SizedBox(height: 10),
-              pw.Table(
-                border: pw.TableBorder.all(),
-                children: [
-                  pw.TableRow(
-                    decoration: pw.BoxDecoration(color: PdfColors.grey300),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Tanggal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Judul', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Kategori', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Tipe', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('Jumlah', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                    ],
-                  ),
-                  ...transactions.map((t) => pw.TableRow(
-                    children: [
-                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(DateFormat('dd/MM/yyyy').format(t.date))),
-                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(t.title)),
-                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(t.category)),
-                      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(t.type == TransactionType.income ? 'Pemasukan' : 'Pengeluaran')),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(8),
-                        child: pw.Text(
-                          currencyFormat.format(t.amount),
+                      pw.Text('Selisih / Saldo', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+                      pw.Text(currencyFormat.format(totalIncome - totalExpense),
                           style: pw.TextStyle(
-                            color: t.type == TransactionType.income ? PdfColors.green : PdfColors.red,
-                          ),
-                        ),
-                      ),
+                            fontSize: 13,
+                            fontWeight: pw.FontWeight.bold,
+                            color: (totalIncome >= totalExpense) ? PdfColors.blue700 : PdfColors.orange700,
+                          )),
                     ],
-                  )),
+                  ),
                 ],
               ),
-            ],
-          );
+            ),
+            pw.SizedBox(height: 16),
+            pw.TableHelper.fromTextArray(
+              headers: ['Tanggal', 'Judul', 'Kategori', 'Sumber', 'Tipe', 'Jumlah'],
+              data: transactions.map((t) => [
+                DateFormat('dd/MM/yyyy HH:mm').format(t.date),
+                t.title,
+                t.category,
+                t.walletName ?? 'Cash',
+                t.type == TransactionType.income ? 'Masuk' : 'Keluar',
+                currencyFormat.format(t.amount),
+              ]).toList(),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.white),
+              headerDecoration: const pw.BoxDecoration(color: PdfColors.teal700),
+              cellStyle: const pw.TextStyle(fontSize: 8),
+              cellAlignment: pw.Alignment.centerLeft,
+              cellPadding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+            ),
+          ];
         },
       ),
     );
 
     final output = await getTemporaryDirectory();
-    final file = File('${output.path}/laporan_keuangan.pdf');
+    final fileName = 'laporan_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    final file = File('${output.path}/$fileName');
     await file.writeAsBytes(await pdf.save());
-    await Share.shareXFiles([XFile(file.path)], text: 'Laporan Keuangan');
+    await Share.shareXFiles([XFile(file.path)], text: title ?? 'Laporan Keuangan');
   }
 
-  Future<void> exportToCSV(List<TransactionModel> transactions) async {
+  Future<void> exportToCSV(List<TransactionModel> transactions, {String? title}) async {
     final List<List<dynamic>> rows = [];
     
-    rows.add(['Tanggal', 'Judul', 'Deskripsi', 'Kategori', 'Tipe', 'Jumlah']);
+    rows.add(['Tanggal', 'Judul', 'Deskripsi', 'Kategori', 'Dompet', 'Tipe', 'Jumlah']);
     
     for (var t in transactions) {
       rows.add([
@@ -114,6 +132,7 @@ class ExportService {
         t.title,
         t.description,
         t.category,
+        t.walletName ?? 'Cash',
         t.type == TransactionType.income ? 'Pemasukan' : 'Pengeluaran',
         t.amount,
       ]);
@@ -121,8 +140,9 @@ class ExportService {
 
     final csv = const ListToCsvConverter().convert(rows);
     final output = await getTemporaryDirectory();
-    final file = File('${output.path}/transaksi.csv');
+    final fileName = 'transaksi_${DateTime.now().millisecondsSinceEpoch}.csv';
+    final file = File('${output.path}/$fileName');
     await file.writeAsString(csv);
-    await Share.shareXFiles([XFile(file.path)], text: 'Data Transaksi CSV');
+    await Share.shareXFiles([XFile(file.path)], text: title ?? 'Data Transaksi CSV');
   }
 }

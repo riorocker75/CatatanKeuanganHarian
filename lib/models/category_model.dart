@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../utils/constants.dart';
 
 class CategoryModel {
   final String id;
@@ -19,13 +20,16 @@ class CategoryModel {
   });
 
   factory CategoryModel.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>;
+    final name = data['name'] as String? ?? '';
+    final codePoint = data['icon'] as int?;
+
     return CategoryModel(
       id: doc.id,
       userId: data['userId'] ?? '',
-      name: data['name'] ?? '',
+      name: name,
       type: data['type'] ?? 'expense',
-      icon: data['icon'] != null ? IconData(data['icon'] as int, fontFamily: 'MaterialIcons') : null,
+      icon: AppConstants.getIconByCodePoint(codePoint, fallbackCategory: name),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
     );
   }

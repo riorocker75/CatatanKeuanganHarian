@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/category_model.dart';
 import '../services/category_service.dart';
+import '../utils/constants.dart';
 
 class CategoryScreen extends StatefulWidget {
   final String type;
@@ -21,9 +24,11 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
   final List<IconData> _icons = [
     Icons.restaurant, Icons.directions_car, Icons.shopping_bag,
-    Icons.movie, Icons.local_hospital, Icons.school,
-    Icons.work, Icons.trending_up, Icons.home,
-    Icons.phone, Icons.computer, Icons.fitness_center,
+    Icons.receipt_long, Icons.movie, Icons.local_hospital, Icons.school,
+    Icons.work, Icons.card_giftcard, Icons.trending_up, Icons.home,
+    Icons.phone_android, Icons.computer, Icons.fitness_center,
+    Icons.storefront, Icons.two_wheeler, Icons.local_cafe,
+    Icons.pets, Icons.flight, Icons.build,
   ];
 
   @override
@@ -39,7 +44,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
   }
 
   Future<void> _save() async {
-    if (_nameController.text.trim().isEmpty) return;
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
 
     setState(() => _isLoading = true);
     try {
@@ -49,9 +55,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
       final category = CategoryModel(
         id: _editingId ?? '',
         userId: user.uid,
-        name: _nameController.text.trim(),
+        name: name,
         type: widget.type,
-        icon: _selectedIcon,
+        icon: _selectedIcon ?? AppConstants.getCategoryIcon(name),
         createdAt: DateTime.now(),
       );
 
@@ -117,6 +123,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
       context: context,
       isScrollControlled: true,
       useRootNavigator: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => Padding(
           padding: EdgeInsets.only(
@@ -128,42 +137,49 @@ class _CategoryScreenState extends State<CategoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                category != null ? 'Edit Kategori' : 'Tambah Kategori',
+                category != null ? 'Edit Kategori' : 'Tambah Kategori Baru',
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _nameController,
-                textInputAction: TextInputAction.done,  
-                onEditingComplete: () => FocusScope.of(context).unfocus(),
                 decoration: InputDecoration(
                   labelText: 'Nama Kategori',
+                  hintText: 'Contoh: Hobi, Cicilan, Skincare',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
               const SizedBox(height: 16),
-              const Text('Pilih Icon', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text('Pilih Icon Kategori', style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _icons.map((icon) {
-                  final isSelected = _selectedIcon == icon;
-                  return GestureDetector(
-                    onTap: () => setModalState(() => _selectedIcon = icon),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: isSelected ? Colors.green.shade600 : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        icon,
-                        color: isSelected ? Colors.white : Colors.grey.shade600,
-                      ),
-                    ),
-                  );
-                }).toList(),
+              SizedBox(
+                height: 120,
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _icons.map((icon) {
+                      final isSelected = _selectedIcon == icon;
+                      return GestureDetector(
+                        onTap: () => setModalState(() => _selectedIcon = icon),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? (widget.type == 'income' ? Colors.green.shade600 : Colors.red.shade600)
+                                : Colors.grey.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            icon,
+                            color: isSelected ? Colors.white : Colors.grey.shade600,
+                            size: 22,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -178,10 +194,13 @@ class _CategoryScreenState extends State<CategoryScreen> {
                   ),
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(category != null ? 'PERBARUI' : 'TAMBAH'),
+                      : Text(
+                          category != null ? 'PERBARUI KATEGORI' : 'SIMPAN KATEGORI',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -196,8 +215,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
     final isIncome = widget.type == 'income';
     final defaults = isIncome
-        ? ['Ngojol']
-        : ['Makanan'];
+        ? AppConstants.defaultIncomeCategories
+        : AppConstants.defaultExpenseCategories;
 
     return Scaffold(
       appBar: AppBar(
@@ -205,6 +224,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
+            tooltip: 'Tambah Kategori',
             onPressed: () => _showDialog(),
           ),
         ],
@@ -217,28 +237,38 @@ class _CategoryScreenState extends State<CategoryScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _buildHeader('Kategori Default'),
-              ...defaults.map((name) => _buildItem(name: name, isDefault: true)),
+              _buildHeader('Kategori Bawaan (Default)'),
+              ...defaults.map((name) => _buildItem(
+                    name: name,
+                    isDefault: true,
+                    icon: AppConstants.getCategoryIcon(name),
+                  )),
 
               const SizedBox(height: 24),
-              _buildHeader('Kategori Custom'),
+              _buildHeader('Kategori Tambahan Anda'),
               if (custom.isEmpty)
-                Center(
-                  child: Column(
-                    children: [
-                      Icon(Icons.category_outlined, size: 48, color: Colors.grey.shade300),
-                      const SizedBox(height: 8),
-                      Text('Belum ada kategori custom', style: TextStyle(color: Colors.grey.shade600)),
-                    ],
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.category_outlined, size: 48, color: Colors.grey.shade400),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Belum ada kategori kustom',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ...custom.map((c) => _buildItem(
-                name: c.name,
-                isDefault: false,
-                icon: c.icon,
-                onEdit: () => _showDialog(category: c),
-                onDelete: () => _delete(c.id, c.name),
-              )),
+                    name: c.name,
+                    isDefault: false,
+                    icon: c.icon ?? AppConstants.getCategoryIcon(c.name),
+                    onEdit: () => _showDialog(category: c),
+                    onDelete: () => _delete(c.id, c.name),
+                  )),
             ],
           );
         },
@@ -251,7 +281,11 @@ class _CategoryScreenState extends State<CategoryScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
-        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
     );
   }
@@ -263,42 +297,192 @@ class _CategoryScreenState extends State<CategoryScreen> {
     VoidCallback? onEdit,
     VoidCallback? onDelete,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isIncome = widget.type == 'income';
+    final primaryColor = isIncome ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+
+    final cardContent = Container(
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isDefault ? Colors.grey.shade100 : Colors.green.shade50,
-              borderRadius: BorderRadius.circular(10),
+              color: primaryColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              icon ?? Icons.category,
-              color: isDefault ? Colors.grey.shade600 : Colors.green.shade600,
+              icon ?? Icons.category_rounded,
+              color: primaryColor,
+              size: 20,
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w500))),
-          if (!isDefault) ...[
-            IconButton(icon: const Icon(Icons.edit, size: 20), color: Colors.blue, onPressed: onEdit),
-            IconButton(icon: const Icon(Icons.delete, size: 20), color: Colors.red, onPressed: onDelete),
-          ] else
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+          ),
+          if (isDefault)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text('Default', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              child: Text(
+                'Default',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                ),
+              ),
+            )
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Geser',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(
+                  Icons.swipe_left_rounded,
+                  size: 13,
+                  color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                ),
+              ],
             ),
         ],
+      ),
+    );
+
+    if (isDefault) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: cardContent,
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Slidable(
+        key: ValueKey(name),
+        endActionPane: ActionPane(
+          motion: const BehindMotion(),
+          extentRatio: 0.44,
+          children: [
+            if (onEdit != null)
+              CustomSlidableAction(
+                onPressed: (_) {
+                  HapticFeedback.lightImpact();
+                  onEdit();
+                },
+                backgroundColor: Colors.transparent,
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3B82F6).withValues(alpha: isDark ? 0.22 : 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.35), width: 1.2),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.edit_rounded, color: Color(0xFF3B82F6), size: 16),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Edit',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF3B82F6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (onDelete != null)
+              CustomSlidableAction(
+                onPressed: (_) {
+                  HapticFeedback.mediumImpact();
+                  onDelete();
+                },
+                backgroundColor: Colors.transparent,
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: isDark ? 0.22 : 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.35), width: 1.2),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.delete_rounded, color: Color(0xFFEF4444), size: 16),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Hapus',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFEF4444),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        child: InkWell(
+          onTap: onEdit,
+          borderRadius: BorderRadius.circular(16),
+          child: cardContent,
+        ),
       ),
     );
   }

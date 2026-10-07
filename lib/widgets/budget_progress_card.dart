@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/budget_model.dart';
+import '../screens/budget_settings_screen.dart';
 
 class BudgetProgressCard extends StatelessWidget {
   final BudgetModel? budget;
@@ -13,93 +15,157 @@ class BudgetProgressCard extends StatelessWidget {
     required this.progress,
   });
 
+  String _formatRupiah(double value) {
+    return 'Rp ${value.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (budget == null) return const SizedBox.shrink();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isExceeded = progress >= 1.0;
-    final isWarning = progress >= 0.8;
+    final isWarning = progress >= 0.75 && !isExceeded;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isExceeded ? Colors.red.shade50 : (isWarning ? Colors.orange.shade50 : Colors.white),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isExceeded ? Colors.red.shade200 : (isWarning ? Colors.orange.shade200 : Colors.grey.shade200),
+    final Color statusColor = isExceeded
+        ? const Color(0xFFEF4444)
+        : (isWarning ? const Color(0xFFF59E0B) : const Color(0xFF10B981));
+
+    final String statusText = isExceeded
+        ? 'Melebihi Batas 🚨'
+        : (isWarning ? 'Waspada ⚠️' : 'Sehat ✓');
+
+    final percentage = (progress * 100).clamp(0, 100).toInt();
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const BudgetSettingsScreen()),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isExceeded
+                ? const Color(0xFFEF4444).withOpacity(0.4)
+                : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Budget ${budget!.period == BudgetPeriod.daily ? 'Harian' : 'Bulanan'}',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              if (isExceeded)
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Row: Title + Status Badge
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        budget!.period == BudgetPeriod.daily
+                            ? Icons.today_rounded
+                            : Icons.savings_rounded,
+                        color: statusColor,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Kesehatan Budget ${budget!.period == BudgetPeriod.daily ? 'Harian' : 'Bulanan'}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: isDark ? Colors.white : const Color(0xFF1E293B),
+                      ),
+                    ),
+                  ],
+                ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.red,
+                    color: statusColor.withOpacity(0.14),
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: statusColor.withOpacity(0.25)),
                   ),
-                  child: const Text(
-                    'TERLAMPAUI',
-                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                  child: Text(
+                    statusText,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                isExceeded ? Colors.red : (isWarning ? Colors.orange : Colors.green),
-              ),
-              minHeight: 8,
+              ],
             ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Rp ${currentSpending.toStringAsFixed(0)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isExceeded ? Colors.red : Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Text(
-                'Rp ${budget!.amount.toStringAsFixed(0)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
-          ),
-          if (isExceeded)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                '⚠️ Anda telah melebihi batas budget!',
-                style: TextStyle(
-                  color: Colors.red.shade700,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+
+            const SizedBox(height: 12),
+
+            // Progress Bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: progress.clamp(0.0, 1.0),
+                backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                minHeight: 7,
               ),
             ),
-        ],
+
+            const SizedBox(height: 10),
+
+            // Spending Details
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                RichText(
+                  text: TextSpan(
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white70 : Colors.grey.shade700,
+                    ),
+                    children: [
+                      const TextSpan(text: 'Terpakai: '),
+                      TextSpan(
+                        text: _formatRupiah(currentSpending),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: statusColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '$percentage% dari ${_formatRupiah(budget!.amount)}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.white54 : Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

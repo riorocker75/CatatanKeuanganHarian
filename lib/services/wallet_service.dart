@@ -56,27 +56,39 @@ class WalletService {
     return WalletModel.fromFirestore(snapshot.docs.first);
   }
 
-  // ⬇️ BARU: Update balance (tambah/kurang)
+  // ⬇️ Update balance (tambah/kurang) secara atomic
   Future<void> updateBalance(String walletId, double amount, bool isIncome) async {
-    final doc = await _firestore.collection(_collection).doc(walletId).get();
-    if (!doc.exists) return;
-    
-    final currentBalance = (doc.data()?['balance'] ?? 0).toDouble();
-    final newBalance = isIncome ? currentBalance + amount : currentBalance - amount;
-    
+    final delta = isIncome ? amount : -amount;
     await _firestore.collection(_collection).doc(walletId).update({
-      'balance': newBalance,
+      'balance': FieldValue.increment(delta),
     });
   }
 
-  // ⬇️ BARU: Get wallet by ID
+  // ⬇️ Set dompet default
+  Future<void> setDefaultWallet(String userId, String walletId) async {
+    final batch = _firestore.batch();
+    
+    // Set all user wallets isDefault to false
+    final snapshots = await _firestore
+        .collection(_collection)
+        .where('userId', isEqualTo: userId)
+        .get();
+
+    for (var doc in snapshots.docs) {
+      batch.update(doc.reference, {'isDefault': doc.id == walletId});
+    }
+
+    await batch.commit();
+  }
+
+  // ⬇️ Get wallet by ID
   Future<WalletModel?> getWalletById(String walletId) async {
     final doc = await _firestore.collection(_collection).doc(walletId).get();
     if (!doc.exists) return null;
     return WalletModel.fromFirestore(doc);
   }
 
-    /// Cek apakah wallet memiliki saldo cukup
+  /// Cek apakah wallet memiliki saldo cukup
   Future<bool> hasEnoughBalance(String walletId, double amount) async {
     final wallet = await getWalletById(walletId);
     return wallet != null && wallet.balance >= amount;
@@ -93,4 +105,4 @@ class WalletService {
     
     return snapshots.docs.map((doc) => WalletModel.fromFirestore(doc)).toList();
   }
-}
+}

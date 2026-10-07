@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/category_model.dart';
-
+import '../utils/constants.dart';
 
 class CategoryService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -35,12 +35,15 @@ class CategoryService {
 
   Future<List<String>> getAllCategories(String userId, String type) async {
     final defaults = type == 'income'
-        ? ['Ngojol']
-        : ['Makanan'];
+        ? AppConstants.defaultIncomeCategories
+        : AppConstants.defaultExpenseCategories;
 
-    final custom = await getUserCategories(userId, type).first;
-    final customNames = custom.map((c) => c.name).toList();
-
-    return [...defaults, ...customNames];
+    try {
+      final custom = await getUserCategories(userId, type).first;
+      final customNames = custom.map((c) => c.name).toList();
+      return [...defaults, ...customNames.where((c) => !defaults.contains(c))];
+    } catch (_) {
+      return defaults;
+    }
   }
 }

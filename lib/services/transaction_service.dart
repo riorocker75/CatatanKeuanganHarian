@@ -82,6 +82,24 @@ class TransactionService {
             .toList());
   }
 
+  // Stream transaksi 7 hari terakhir (untuk Grafik Mingguan)
+  Stream<List<TransactionModel>> getLast7DaysTransactions(String userId) {
+    final now = DateTime.now();
+    final startOf7DaysAgo = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+    final endOfToday = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+
+    return _firestore
+        .collection(_collection)
+        .where('userId', isEqualTo: userId)
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOf7DaysAgo))
+        .where('date', isLessThan: Timestamp.fromDate(endOfToday))
+        .orderBy('date', descending: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => TransactionModel.fromFirestore(doc))
+            .toList());
+  }
+
   // Stream semua transaksi user
   Stream<List<TransactionModel>> getUserTransactions(String userId) {
     return _firestore
@@ -93,6 +111,7 @@ class TransactionService {
             .map((doc) => TransactionModel.fromFirestore(doc))
             .toList());
   }
+
 
   // Stream transaksi per bulan
   Stream<List<TransactionModel>> getMonthlyTransactions(

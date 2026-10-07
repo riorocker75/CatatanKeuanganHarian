@@ -26,6 +26,10 @@ class BudgetService {
     }
   }
 
+  Future<void> deleteBudget(String budgetId) async {
+    await _firestore.collection(_collection).doc(budgetId).delete();
+  }
+
   Stream<List<BudgetModel>> getUserBudgets(String userId) {
     return _firestore
         .collection(_collection)

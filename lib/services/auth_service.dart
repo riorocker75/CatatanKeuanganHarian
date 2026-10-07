@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:keuangan_harian/screens/auth/login_screen.dart';
-import '../services/cache_service.dart';
+
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -12,16 +12,22 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
 
   // Register
-  Future<UserCredential?> register(String email, String password) async {
+  Future<UserCredential?> register(String email, String password, {String? name}) async {
     try {
-      return await _auth.createUserWithEmailAndPassword(
+      final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
+      if (name != null && name.isNotEmpty && credential.user != null) {
+        await credential.user!.updateDisplayName(name);
+      }
+      return credential;
     } on FirebaseAuthException catch (e) {
       throw _handleAuthError(e);
     }
   }
+
+
 
   // Login
   Future<UserCredential?> login(String email, String password) async {

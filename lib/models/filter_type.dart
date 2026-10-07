@@ -14,11 +14,13 @@ extension FilterTypeExtension on FilterType {
 
   DateTime getStartDate() {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     switch (this) {
       case FilterType.daily:
-        return DateTime(now.year, now.month, now.day);
+        return today;
       case FilterType.weekly:
-        return now.subtract(Duration(days: now.weekday - 1));
+        // Start of this week (Monday)
+        return today.subtract(Duration(days: now.weekday - 1));
       case FilterType.monthly:
         return DateTime(now.year, now.month, 1);
     }
@@ -26,13 +28,15 @@ extension FilterTypeExtension on FilterType {
 
   DateTime getEndDate() {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     switch (this) {
       case FilterType.daily:
-        return now.add(const Duration(days: 1));
+        return today.add(const Duration(days: 1));
       case FilterType.weekly:
-        return now.add(Duration(days: 7 - now.weekday + 1));
+        // End of this week (Sunday 23:59:59 or Monday next week 00:00)
+        return today.add(Duration(days: 7 - now.weekday + 1));
       case FilterType.monthly:
         return DateTime(now.year, now.month + 1, 1);
     }
   }
-}
+}

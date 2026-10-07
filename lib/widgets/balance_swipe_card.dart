@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-/// Card gabungan saldo hari ini (+ pemasukan/pengeluaran inline)
-/// dan saldo dompet, bisa digeser ke kanan untuk pindah halaman.
-///
-/// Halaman 1: Saldo Hari Ini  -> ringkasan pemasukan & pengeluaran hari ini
-/// Halaman 2: Total Saldo Dompet -> jumlah semua dompet + jumlah dompet aktif
+/// Modern Fintech Hero Balance Card with Eye Privacy Toggle,
+/// Daily Cashflow Badges, and Multi-Wallet Overview.
 class BalanceSwipeCard extends StatefulWidget {
   final double todayIncome;
   final double todayExpense;
@@ -13,6 +12,9 @@ class BalanceSwipeCard extends StatefulWidget {
   final VoidCallback? onTapWallet;
   final VoidCallback? onTapIncome;
   final VoidCallback? onTapExpense;
+  final VoidCallback? onTapTransfer;
+  final VoidCallback? onTapRecurring;
+  final VoidCallback? onTapAdd;
 
   const BalanceSwipeCard({
     super.key,
@@ -23,6 +25,9 @@ class BalanceSwipeCard extends StatefulWidget {
     this.onTapWallet,
     this.onTapIncome,
     this.onTapExpense,
+    this.onTapTransfer,
+    this.onTapRecurring,
+    this.onTapAdd,
   });
 
   @override
@@ -32,6 +37,29 @@ class BalanceSwipeCard extends StatefulWidget {
 class _BalanceSwipeCardState extends State<BalanceSwipeCard> {
   final PageController _controller = PageController();
   int _index = 0;
+  bool _isBalanceHidden = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrivacyState();
+  }
+
+  Future<void> _loadPrivacyState() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isBalanceHidden = prefs.getBool('hide_balance_privacy') ?? false;
+    });
+  }
+
+  Future<void> _togglePrivacyState() async {
+    HapticFeedback.selectionClick();
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isBalanceHidden = !_isBalanceHidden;
+    });
+    await prefs.setBool('hide_balance_privacy', _isBalanceHidden);
+  }
 
   @override
   void dispose() {
@@ -39,7 +67,8 @@ class _BalanceSwipeCardState extends State<BalanceSwipeCard> {
     super.dispose();
   }
 
-  String _rupiah(double value) {
+  String _formatRupiah(double value) {
+    if (_isBalanceHidden) return 'Rp ••••••••';
     final s = value.abs().toStringAsFixed(0);
     final buffer = StringBuffer();
     for (int i = 0; i < s.length; i++) {
@@ -54,174 +83,292 @@ class _BalanceSwipeCardState extends State<BalanceSwipeCard> {
   @override
   Widget build(BuildContext context) {
     final saldoHariIni = widget.todayIncome - widget.todayExpense;
-    final saldoColor = saldoHariIni < 0 ? Colors.red.shade300 : Colors.green.shade300;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Swipeable Hero Card
         SizedBox(
-          height: 210,
+          height: 205,
           child: PageView(
             controller: _controller,
             onPageChanged: (i) => setState(() => _index = i),
             children: [
+              // Slide 1: Total Saldo & Arus Kas Hari Ini
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _SaldoHariIniCard(
-                  saldo: _rupiah(saldoHariIni),
-                  saldoColor: saldoColor,
-                  pemasukan: _rupiah(widget.todayIncome),
-                  pengeluaran: _rupiah(widget.todayExpense),
-                  onTapIncome: widget.onTapIncome,
-                  onTapExpense: widget.onTapExpense,
-                ),
+                child: _buildTotalBalanceSlide(saldoHariIni, isDark),
               ),
+              // Slide 2: Ringkasan Saldo Dompet
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _SaldoDompetCard(
-                  saldo: _rupiah(widget.totalWalletBalance),
-                  walletCount: widget.walletCount,
-                  onTap: widget.onTapWallet,
-                ),
+                child: _buildWalletOverviewSlide(isDark),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 14),
+
+        const SizedBox(height: 10),
+
+        // Page Indicator
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(2, (i) {
             final active = i == _index;
             return AnimatedContainer(
               duration: const Duration(milliseconds: 250),
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              width: active ? 20 : 6,
-              height: 6,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: active ? 22 : 6,
+              height: 5,
               decoration: BoxDecoration(
-                color: active ? Colors.purple.shade400 : const Color(0xFFD8D8E5),
+                color: active
+                    ? const Color(0xFF10B981)
+                    : (isDark ? Colors.white24 : Colors.grey.shade300),
                 borderRadius: BorderRadius.circular(10),
               ),
             );
           }),
         ),
-        const SizedBox(height: 8),
-        Text(
-          _index == 0 ? 'Geser ke kanan untuk lihat saldo dompet' : 'Geser ke kiri untuk kembali',
-          style: const TextStyle(fontSize: 12, color: Color(0xFFA0A0AE)),
+
+        const SizedBox(height: 16),
+
+        // 4 Quick Fintech Action Buttons
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildQuickActionButton(
+                icon: Icons.arrow_downward_rounded,
+                label: 'Pemasukan',
+                color: const Color(0xFF10B981),
+                isDark: isDark,
+                onTap: widget.onTapIncome,
+              ),
+              _buildQuickActionButton(
+                icon: Icons.arrow_upward_rounded,
+                label: 'Pengeluaran',
+                color: const Color(0xFFEF4444),
+                isDark: isDark,
+                onTap: widget.onTapExpense,
+              ),
+              _buildQuickActionButton(
+                icon: Icons.swap_horiz_rounded,
+                label: 'Transfer',
+                color: const Color(0xFF3B82F6),
+                isDark: isDark,
+                onTap: widget.onTapTransfer,
+              ),
+              _buildQuickActionButton(
+                icon: Icons.account_balance_wallet_rounded,
+                label: 'Dompet',
+                color: const Color(0xFF8B5CF6),
+                isDark: isDark,
+                onTap: widget.onTapWallet,
+              ),
+              _buildQuickActionButton(
+                icon: Icons.update_rounded,
+                label: 'Rutin',
+                color: const Color(0xFFF59E0B),
+                isDark: isDark,
+                onTap: widget.onTapRecurring,
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
-}
 
-/// Halaman 1: saldo hari ini + ringkasan pemasukan & pengeluaran dalam satu card.
-class _SaldoHariIniCard extends StatelessWidget {
-  final String saldo;
-  final Color saldoColor;
-  final String pemasukan;
-  final String pengeluaran;
-  final VoidCallback? onTapIncome;
-  final VoidCallback? onTapExpense;
-
-  const _SaldoHariIniCard({
-    required this.saldo,
-    required this.saldoColor,
-    required this.pemasukan,
-    required this.pengeluaran,
-    this.onTapIncome,
-    this.onTapExpense,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildTotalBalanceSlide(double saldoHariIni, bool isDark) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.purple.shade600, Colors.purple.shade400],
+          colors: isDark
+              ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
+              : [const Color(0xFF0F172A), const Color(0xFF1E293B)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.purple.shade200,
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Stack(
         children: [
+          // Background subtle glowing circle decoration
           Positioned(
-            right: -30,
-            top: -30,
+            right: -25,
+            top: -25,
             child: Container(
-              width: 120,
-              height: 120,
+              width: 110,
+              height: 110,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.08),
+                color: const Color(0xFFEF4444).withValues(alpha: 0.12),
               ),
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              // Top row: Label + Eye Privacy Button
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 18),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFFCA5A5), size: 16),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Total Pengeluaran Hari Ini',
+                        style: TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Saldo Hari Ini',
-                    style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                  GestureDetector(
+                    onTap: _togglePrivacyState,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _isBalanceHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                        color: Colors.white70,
+                        size: 16,
+                      ),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+
+              // Hero Expense Value (shows Rp 0 if empty)
               Text(
-                saldo,
-                style: TextStyle(
-                  color: saldoColor,
+                _formatRupiah(widget.todayExpense),
+                style: const TextStyle(
+                  color: Colors.white,
                   fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.3,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
                 ),
               ),
-              const SizedBox(height: 18),
-              Container(height: 1, color: Colors.white.withOpacity(0.18)),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  // Pemasukan - pakai _TappableMiniStat untuk feedback visual
-                  Expanded(
-                    child: _TappableMiniStat(
-                      icon: Icons.trending_up,
-                      label: 'Pemasukan',
-                      amount: pemasukan,
-                      onTap: onTapIncome,
+
+              // Bottom Row: Today's Income & Expense Badges
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+                child: Row(
+                  children: [
+                    // Income
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: widget.onTapIncome,
+                        behavior: HitTestBehavior.opaque,
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.arrow_downward_rounded, size: 12, color: Color(0xFF10B981)),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text('Masuk Hari Ini', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 9)),
+                                  Text(
+                                    _formatRupiah(widget.todayIncome),
+                                    style: const TextStyle(
+                                      color: Color(0xFF10B981),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  Container(width: 1, height: 30, color: Colors.white.withOpacity(0.18)),
-                  // Pengeluaran - pakai _TappableMiniStat untuk feedback visual
-                  Expanded(
-                    child: _TappableMiniStat(
-                      icon: Icons.trending_down,
-                      label: 'Pengeluaran',
-                      amount: pengeluaran,
-                      alignEnd: true,
-                      onTap: onTapExpense,
+
+                    Container(width: 1, height: 24, color: Colors.white.withValues(alpha: 0.12)),
+                    const SizedBox(width: 8),
+
+                    // Expense
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: widget.onTapExpense,
+                        behavior: HitTestBehavior.opaque,
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.arrow_upward_rounded, size: 12, color: Color(0xFFEF4444)),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text('Keluar Hari Ini', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 9)),
+                                  Text(
+                                    _formatRupiah(widget.todayExpense),
+                                    style: const TextStyle(
+                                      color: Color(0xFFEF4444),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -229,144 +376,45 @@ class _SaldoHariIniCard extends StatelessWidget {
       ),
     );
   }
-}
 
-/// Widget mini stat yang bisa di-tap dengan visual feedback (opacity change)
-class _TappableMiniStat extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final String amount;
-  final bool alignEnd;
-  final VoidCallback? onTap;
-
-  const _TappableMiniStat({
-    required this.icon,
-    required this.label,
-    required this.amount,
-    this.alignEnd = false,
-    this.onTap,
-  });
-
-  @override
-  State<_TappableMiniStat> createState() => _TappableMiniStatState();
-}
-
-class _TappableMiniStatState extends State<_TappableMiniStat> {
-  bool _isPressed = false;
-
-  void _handleTapDown(TapDownDetails details) {
-    setState(() => _isPressed = true);
-  }
-
-  void _handleTapUp(TapUpDetails details) {
-    setState(() => _isPressed = false);
-    widget.onTap?.call();
-  }
-
-  void _handleTapCancel() {
-    setState(() => _isPressed = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final iconBg = Colors.white.withOpacity(0.18);
-
-    final labelRow = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (!widget.alignEnd) ...[
-          Container(
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
-            child: Icon(widget.icon, color: Colors.white, size: 12),
-          ),
-          const SizedBox(width: 6),
-        ],
-        Text(
-          widget.label,
-          style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
-        ),
-        if (widget.alignEnd) ...[
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
-            child: Icon(widget.icon, color: Colors.white, size: 12),
-          ),
-        ],
-      ],
-    );
-
+  Widget _buildWalletOverviewSlide(bool isDark) {
     return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: _handleTapDown,
-      onTapUp: _handleTapUp,
-      onTapCancel: _handleTapCancel,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 100),
-        opacity: _isPressed ? 0.6 : 1.0,
-        child: Column(
-          crossAxisAlignment: widget.alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            labelRow,
-            const SizedBox(height: 6),
-            Text(
-              widget.amount,
-              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Halaman 2: total saldo dompet, muncul saat di-swipe ke kanan.
-class _SaldoDompetCard extends StatelessWidget {
-  final String saldo;
-  final int walletCount;
-  final VoidCallback? onTap;
-
-  const _SaldoDompetCard({required this.saldo, required this.walletCount, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTapWallet,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(22),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.blueGrey.shade800, Colors.blueGrey.shade600],
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1E3A8A), Color(0xFF1E293B)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.blueGrey.shade200,
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+              color: const Color(0xFF1E3A8A).withValues(alpha: 0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Stack(
           children: [
             Positioned(
-              right: -30,
-              top: -30,
+              right: -25,
+              top: -25,
               child: Container(
-                width: 120,
-                height: 120,
+                width: 110,
+                height: 110,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.blue.withValues(alpha: 0.12),
                 ),
               ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -374,53 +422,144 @@ class _SaldoDompetCard extends StatelessWidget {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.14),
+                            color: Colors.white.withValues(alpha: 0.14),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.account_balance, color: Colors.white, size: 18),
+                          child: const Icon(Icons.credit_card_rounded, color: Colors.white, size: 16),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
                         const Text(
-                          'Total Saldo Dompet',
-                          style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                          'Dompet & Rekening Aktif',
+                          style: TextStyle(
+                            color: Color(0xFF93C5FD),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
-                    if (onTap != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: _togglePrivacyState,
+                          behavior: HitTestBehavior.opaque,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              _isBalanceHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                              color: Colors.white70,
+                              size: 16,
+                            ),
+                          ),
                         ),
-                        child: const Text(
-                          'Lihat Detail',
-                          style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Kelola',
+                                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                              SizedBox(width: 2),
+                              Icon(Icons.chevron_right_rounded, size: 14, color: Colors.white),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
+                    ),
                   ],
                 ),
-                const Spacer(),
-                Text(
-                  saldo,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.3,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _formatRupiah(widget.totalWalletBalance),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Terbagi dalam ${widget.walletCount} akun dompet / rekening',
+                      style: const TextStyle(color: Color(0xFFBFDBFE), fontSize: 12),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '$walletCount dompet aktif',
-                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.touch_app_rounded, size: 14, color: Color(0xFF93C5FD)),
+                      SizedBox(width: 6),
+                      Text(
+                        'Ketuk di sini untuk tambah atau kelola saldo dompet',
+                        style: TextStyle(color: Color(0xFF93C5FD), fontSize: 11),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required bool isDark,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap?.call();
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: isDark ? 0.18 : 0.12),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withValues(alpha: 0.2)),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+            ),
+          ),
+        ],
       ),
     );
   }

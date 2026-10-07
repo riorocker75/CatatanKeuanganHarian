@@ -40,6 +40,12 @@ dependencies:
   # Storage
   shared_preferences: ^2.2.2
 
+  # Smart AI OCR & Voice Input
+  image_picker: ^1.0.7
+  google_mlkit_text_recognition: ^0.13.0
+  speech_to_text: ^7.0.0
+  permission_handler: ^11.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

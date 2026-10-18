@@ -20,3 +20,17 @@
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
 -dontwarn io.flutter.**
+
+# Flutter Local Notifications & Gson (Required for Scheduled Notifications)
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.dexterous.** { *; }
+-keep class com.google.gson.** { *; }
+-keep class com.google.gson.reflect.** { *; }
+-keepclassmembers class * extends com.google.gson.TypeAdapter {
+    public <init>(...);
+}
+-keepclassmembers enum * { *; }
+-dontwarn com.dexterous.**
+-dontwarn com.google.gson.**
+

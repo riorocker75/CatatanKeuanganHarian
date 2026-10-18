@@ -57,8 +57,7 @@ class BudgetService {
     }
   }
 
-  Future<double> getCurrentSpending(String userId, BudgetPeriod period, {String category = 'all'}) async {
-  try {
+  Stream<double> watchCurrentSpending(String userId, BudgetPeriod period, {String category = 'all'}) {
     final now = DateTime.now();
     DateTime startDate;
     DateTime endDate;
@@ -71,31 +70,66 @@ class BudgetService {
       endDate = DateTime(now.year, now.month + 1, 1);
     }
 
-    var query = _firestore
+    return _firestore
         .collection('transactions')
         .where('userId', isEqualTo: userId)
-        .where('type', isEqualTo: 'expense')
         .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
-        .where('date', isLessThan: Timestamp.fromDate(endDate));
-
-    if (category != 'all') {
-      query = query.where('category', isEqualTo: category);
-    }
-
-    final snapshot = await query.get();
-    
-    double total = 0.0;
-    for (var doc in snapshot.docs) {
-      final dynamic rawAmount = doc.data()['amount'];
-      if (rawAmount != null) {
-        total += (rawAmount as num).toDouble();
+        .where('date', isLessThan: Timestamp.fromDate(endDate))
+        .snapshots()
+        .map((snapshot) {
+      double total = 0.0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        if (data['type'] == 'expense') {
+          if (category == 'all' || data['category'] == category) {
+            final dynamic rawAmount = data['amount'];
+            if (rawAmount != null) {
+              total += (rawAmount as num).toDouble();
+            }
+          }
+        }
       }
-    }
-    return total;
-    
-  } catch (e) {
-    print('Error getCurrentSpending: $e');
-    return 0.0;
+      return total;
+    });
   }
-}
+
+  Future<double> getCurrentSpending(String userId, BudgetPeriod period, {String category = 'all'}) async {
+    try {
+      final now = DateTime.now();
+      DateTime startDate;
+      DateTime endDate;
+
+      if (period == BudgetPeriod.daily) {
+        startDate = DateTime(now.year, now.month, now.day);
+        endDate = startDate.add(const Duration(days: 1));
+      } else {
+        startDate = DateTime(now.year, now.month, 1);
+        endDate = DateTime(now.year, now.month + 1, 1);
+      }
+
+      final snapshot = await _firestore
+          .collection('transactions')
+          .where('userId', isEqualTo: userId)
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+          .where('date', isLessThan: Timestamp.fromDate(endDate))
+          .get();
+
+      double total = 0.0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        if (data['type'] == 'expense') {
+          if (category == 'all' || data['category'] == category) {
+            final dynamic rawAmount = data['amount'];
+            if (rawAmount != null) {
+              total += (rawAmount as num).toDouble();
+            }
+          }
+        }
+      }
+      return total;
+    } catch (e) {
+      print('Error getCurrentSpending: $e');
+      return 0.0;
+    }
+  }
 }

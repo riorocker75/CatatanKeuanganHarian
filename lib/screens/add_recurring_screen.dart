@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/recurring_transaction_model.dart';
 import '../models/transaction_model.dart';
@@ -9,6 +10,7 @@ import '../services/category_service.dart';
 import '../services/holiday_service.dart';
 import '../widgets/searchable_chip_picker.dart';
 import '../utils/constants.dart';
+import '../utils/currency_formatter.dart';
 import 'category_screen.dart';
 
 class AddRecurringScreen extends StatefulWidget {
@@ -45,6 +47,7 @@ class _AddRecurringScreenState extends State<AddRecurringScreen> {
   @override
   void initState() {
     super.initState();
+    _titleController.text = _selectedCategory;
     _holidayService.loadHolidaysForYear(DateTime.now().year);
     _holidayService.loadHolidaysForYear(DateTime.now().year + 1);
     _loadWalletsAndCategories();
@@ -94,9 +97,10 @@ class _AddRecurringScreenState extends State<AddRecurringScreen> {
   }
 
   void _addQuickAmount(double value) {
-    final current = double.tryParse(_amountController.text) ?? 0;
+    HapticFeedback.selectionClick();
+    final current = CurrencyFormatHelper.parse(_amountController.text);
     final updated = current + value;
-    _amountController.text = updated.toStringAsFixed(0);
+    _amountController.text = CurrencyFormatHelper.format(updated);
     setState(() {});
   }
 
@@ -134,7 +138,10 @@ class _AddRecurringScreenState extends State<AddRecurringScreen> {
     );
 
     if (picked != null && mounted) {
-      setState(() => _selectedCategory = picked);
+      setState(() {
+        _selectedCategory = picked;
+        _titleController.text = picked;
+      });
     }
   }
 
@@ -174,15 +181,54 @@ class _AddRecurringScreenState extends State<AddRecurringScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('User tidak login');
 
-      final amount = double.parse(_amountController.text.trim());
+      final amount = CurrencyFormatHelper.parse(_amountController.text);
       if (amount <= 0) throw Exception('Nominal harus lebih dari 0');
 
       DateTime initialStart = _startDate;
+      DateTime lastGen;
+
       if (_selectedFrequency == RecurringFrequency.monthly) {
         final now = DateTime.now();
         final daysInThisMonth = DateTime(now.year, now.month + 1, 0).day;
         final day = _targetDayOfMonth > daysInThisMonth ? daysInThisMonth : _targetDayOfMonth;
-        initialStart = DateTime(now.year, now.month, day);
+        final thisMonthTarget = DateTime(now.year, now.month, day);
+        final thisMonthExec = DateTime(now.year, now.month, day, _executionTime.hour, _executionTime.minute);
+
+        if (now.isAfter(thisMonthExec)) {
+          // Tanggal di bulan berjalan sudah lewat waktu eksekusinya -> Jadwalkan untuk bulan berikutnya
+          var nextYear = now.year;
+          var nextMonth = now.month + 1;
+          if (nextMonth > 12) {
+            nextYear += 1;
+            nextMonth = 1;
+          }
+          final daysInNextMonth = DateTime(nextYear, nextMonth + 1, 0).day;
+          final nextD = _targetDayOfMonth > daysInNextMonth ? daysInNextMonth : _targetDayOfMonth;
+          initialStart = DateTime(nextYear, nextMonth, nextD);
+          lastGen = thisMonthTarget;
+        } else {
+          // Belum masuk/lewat di tanggal bulan tersebut -> tampung tanggal bulan ini
+          initialStart = thisMonthTarget;
+          var prevYear = now.year;
+          var prevMonth = now.month - 1;
+          if (prevMonth < 1) {
+            prevYear -= 1;
+            prevMonth = 12;
+          }
+          final daysInPrevMonth = DateTime(prevYear, prevMonth + 1, 0).day;
+          final prevD = _targetDayOfMonth > daysInPrevMonth ? daysInPrevMonth : _targetDayOfMonth;
+          lastGen = DateTime(prevYear, prevMonth, prevD);
+        }
+      } else if (_selectedFrequency == RecurringFrequency.weekly) {
+        initialStart = _startDate;
+        lastGen = initialStart.subtract(const Duration(days: 7));
+      } else if (_selectedFrequency == RecurringFrequency.yearly) {
+        initialStart = _startDate;
+        lastGen = DateTime(initialStart.year - 1, initialStart.month, initialStart.day);
+      } else {
+        // Daily
+        initialStart = _startDate;
+        lastGen = initialStart.subtract(const Duration(days: 1));
       }
 
       final recurring = RecurringTransactionModel(
@@ -195,7 +241,7 @@ class _AddRecurringScreenState extends State<AddRecurringScreen> {
         frequency: _selectedFrequency,
         startDate: initialStart,
         endDate: _endDate,
-        lastGenerated: initialStart.subtract(const Duration(days: 1)),
+        lastGenerated: lastGen,
         isActive: true,
         walletId: _selectedWalletId,
         walletName: _selectedWalletName,
@@ -396,6 +442,10 @@ class _AddRecurringScreenState extends State<AddRecurringScreen> {
                           child: TextFormField(
                             controller: _amountController,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              CurrencyInputFormatter(),
+                            ],
                             style: TextStyle(
                               fontSize: 30,
                               fontWeight: FontWeight.bold,
@@ -408,7 +458,8 @@ class _AddRecurringScreenState extends State<AddRecurringScreen> {
                             ),
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) return 'Nominal tidak boleh kosong';
-                              if (double.tryParse(value) == null) return 'Nominal tidak valid';
+                              final amount = CurrencyFormatHelper.parse(value);
+                              if (amount <= 0) return 'Nominal tidak valid';
                               return null;
                             },
                           ),
@@ -476,7 +527,10 @@ class _AddRecurringScreenState extends State<AddRecurringScreen> {
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: InkWell(
-                          onTap: () => setState(() => _selectedCategory = cat),
+                          onTap: () => setState(() {
+                            _selectedCategory = cat;
+                            _titleController.text = cat;
+                          }),
                           borderRadius: BorderRadius.circular(16),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 150),
@@ -952,6 +1006,8 @@ class _AddRecurringScreenState extends State<AddRecurringScreen> {
     final isSelected = _selectedType == type;
     return GestureDetector(
       onTap: () {
+        final oldCat = _selectedCategory;
+        final newCat = type == TransactionType.income ? 'Gaji' : 'Makanan';
         setState(() {
           _selectedType = type;
           if (type == TransactionType.income) {
@@ -962,6 +1018,9 @@ class _AddRecurringScreenState extends State<AddRecurringScreen> {
             _categories = AppConstants.defaultExpenseCategories;
             _selectedCategory = 'Makanan';
             _selectedBusinessDayRule = BusinessDayRule.none;
+          }
+          if (_titleController.text.isEmpty || _titleController.text == oldCat) {
+            _titleController.text = newCat;
           }
         });
         _updateCategoryList();

@@ -80,6 +80,23 @@ class _BalanceSwipeCardState extends State<BalanceSwipeCard> {
     return '${sign}Rp $buffer';
   }
 
+  String _formatSignedRupiah(double value) {
+    if (_isBalanceHidden) return 'Rp ••••••••';
+    final s = value.abs().toStringAsFixed(0);
+    final buffer = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final posFromEnd = s.length - i;
+      buffer.write(s[i]);
+      if (posFromEnd > 1 && posFromEnd % 3 == 1) buffer.write('.');
+    }
+    if (value < 0) {
+      return '-Rp $buffer';
+    } else if (value > 0) {
+      return '+Rp $buffer';
+    }
+    return 'Rp 0';
+  }
+
   @override
   Widget build(BuildContext context) {
     final saldoHariIni = widget.todayIncome - widget.todayExpense;
@@ -182,6 +199,22 @@ class _BalanceSwipeCardState extends State<BalanceSwipeCard> {
   }
 
   Widget _buildTotalBalanceSlide(double saldoHariIni, bool isDark) {
+    final bool isNegative = saldoHariIni < 0;
+    final bool isPositive = saldoHariIni > 0;
+    final Color valueColor = isNegative
+        ? const Color(0xFFEF4444)
+        : (isPositive ? const Color(0xFF10B981) : Colors.white);
+    final Color badgeBgColor = isNegative
+        ? const Color(0xFFEF4444).withValues(alpha: 0.16)
+        : (isPositive ? const Color(0xFF10B981).withValues(alpha: 0.16) : Colors.white.withValues(alpha: 0.12));
+    final Color iconColor = isNegative
+        ? const Color(0xFFFCA5A5)
+        : (isPositive ? const Color(0xFF6EE7B7) : Colors.white70);
+    final IconData statusIcon = isNegative
+        ? Icons.trending_down_rounded
+        : (isPositive ? Icons.trending_up_rounded : Icons.account_balance_wallet_rounded);
+    final String statusLabel = isNegative ? 'Defisit' : (isPositive ? 'Surplus' : 'Seimbang');
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -213,7 +246,10 @@ class _BalanceSwipeCardState extends State<BalanceSwipeCard> {
               height: 110,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                color: (isNegative
+                        ? const Color(0xFFEF4444)
+                        : (isPositive ? const Color(0xFF10B981) : Colors.blue))
+                    .withValues(alpha: 0.12),
               ),
             ),
           ),
@@ -230,19 +266,35 @@ class _BalanceSwipeCardState extends State<BalanceSwipeCard> {
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444).withValues(alpha: 0.16),
+                          color: badgeBgColor,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFFCA5A5), size: 16),
+                        child: Icon(statusIcon, color: iconColor, size: 16),
                       ),
                       const SizedBox(width: 8),
                       const Text(
-                        'Total Pengeluaran Hari Ini',
+                        'Arus Kas Hari Ini',
                         style: TextStyle(
                           color: Color(0xFF94A3B8),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: badgeBgColor,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          statusLabel,
+                          style: TextStyle(
+                            color: valueColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -266,11 +318,11 @@ class _BalanceSwipeCardState extends State<BalanceSwipeCard> {
                 ],
               ),
 
-              // Hero Expense Value (shows Rp 0 if empty)
+              // Hero Signed Cashflow Value (colored red if minus, green if positive)
               Text(
-                _formatRupiah(widget.todayExpense),
-                style: const TextStyle(
-                  color: Colors.white,
+                _formatSignedRupiah(saldoHariIni),
+                style: TextStyle(
+                  color: valueColor,
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.5,
@@ -486,8 +538,10 @@ class _BalanceSwipeCardState extends State<BalanceSwipeCard> {
                   children: [
                     Text(
                       _formatRupiah(widget.totalWalletBalance),
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: widget.totalWalletBalance < 0
+                            ? const Color(0xFFEF4444)
+                            : Colors.white,
                         fontSize: 26,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.5,

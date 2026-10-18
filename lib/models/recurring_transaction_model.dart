@@ -150,12 +150,46 @@ class RecurringTransactionModel {
   DateTime getRawNextDate() {
     switch (frequency) {
       case RecurringFrequency.daily:
+        if (lastGenerated.isBefore(startDate)) {
+          return startDate;
+        }
         return DateTime(lastGenerated.year, lastGenerated.month, lastGenerated.day + 1);
+
       case RecurringFrequency.weekly:
+        if (lastGenerated.isBefore(startDate)) {
+          return startDate;
+        }
         return DateTime(lastGenerated.year, lastGenerated.month, lastGenerated.day + 7);
+
       case RecurringFrequency.monthly:
         final targetDay = targetDayOfMonth ?? startDate.day;
-        // Hitung bulan berikutnya dari lastGenerated
+
+        // Jika transaksi ini belum pernah dieksekusi (lastGenerated < startDate)
+        if (lastGenerated.isBefore(startDate)) {
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          final startDay = DateTime(startDate.year, startDate.month, startDate.day);
+
+          // Selama belum masuk/lewat di tanggal bulan tersebut (hari ini <= startDay),
+          // gunakan tanggal target bulan tersebut (startDate)
+          if (!today.isAfter(startDay)) {
+            return startDate;
+          }
+
+          // Jika tanggal di bulan tersebut sudah lewat hari-hari sebelumnya,
+          // baru lompat ke bulan selanjutnya
+          var nextYear = startDate.year;
+          var nextMonth = startDate.month + 1;
+          if (nextMonth > 12) {
+            nextYear += 1;
+            nextMonth = 1;
+          }
+          final daysInMonth = DateTime(nextYear, nextMonth + 1, 0).day;
+          final actualDay = targetDay > daysInMonth ? daysInMonth : targetDay;
+          return DateTime(nextYear, nextMonth, actualDay);
+        }
+
+        // Hitung bulan berikutnya dari lastGenerated jika sudah pernah dieksekusi
         var nextYear = lastGenerated.year;
         var nextMonth = lastGenerated.month + 1;
         if (nextMonth > 12) {
@@ -166,7 +200,11 @@ class RecurringTransactionModel {
         final daysInMonth = DateTime(nextYear, nextMonth + 1, 0).day;
         final actualDay = targetDay > daysInMonth ? daysInMonth : targetDay;
         return DateTime(nextYear, nextMonth, actualDay);
+
       case RecurringFrequency.yearly:
+        if (lastGenerated.isBefore(startDate)) {
+          return startDate;
+        }
         return DateTime(lastGenerated.year + 1, lastGenerated.month, lastGenerated.day);
     }
   }

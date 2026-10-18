@@ -9,6 +9,10 @@ import 'package:provider/provider.dart';
 import 'utils/theme_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/add_transaction_screen.dart';
+import 'services/notification_service.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +25,20 @@ void main() async {
   
   // 3. Init locale
   await initializeDateFormatting('id_ID', null);
+
+  // 4. Init Local Notification Service
+  final notificationService = NotificationService();
+  await notificationService.init(
+    onSelectNotification: (payload) {
+      if (payload == 'add_transaction') {
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) => const AddTransactionScreen(),
+          ),
+        );
+      }
+    },
+  );
 
   runApp(
     ChangeNotifierProvider(
@@ -38,6 +56,7 @@ class MyApp extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Keuangan Harian',
       debugShowCheckedModeBanner: false,
       theme: themeProvider.themeData,

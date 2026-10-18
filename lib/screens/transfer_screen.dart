@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/wallet_model.dart';
 import '../models/transfer_model.dart';
 import '../services/wallet_service.dart';
 import '../services/transfer_service.dart';
+import '../utils/currency_formatter.dart';
 
 class TransferScreen extends StatefulWidget {
   final WalletModel? initialFromWallet;
@@ -44,9 +46,10 @@ class _TransferScreenState extends State<TransferScreen> {
   }
 
   void _addQuickAmount(double value) {
-    final current = double.tryParse(_amountController.text) ?? 0;
+    HapticFeedback.selectionClick();
+    final current = CurrencyFormatHelper.parse(_amountController.text);
     final updated = current + value;
-    _amountController.text = updated.toStringAsFixed(0);
+    _amountController.text = CurrencyFormatHelper.format(updated);
     setState(() {});
   }
 
@@ -168,7 +171,7 @@ class _TransferScreenState extends State<TransferScreen> {
   }
 
   Future<void> _executeTransfer() async {
-    final amount = double.tryParse(_amountController.text) ?? 0;
+    final amount = CurrencyFormatHelper.parse(_amountController.text);
     if (amount <= 0) {
       _showError('Masukkan jumlah yang valid');
       return;
@@ -320,6 +323,10 @@ class _TransferScreenState extends State<TransferScreen> {
                             child: TextFormField(
                               controller: _amountController,
                               keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                CurrencyInputFormatter(),
+                              ],
                               style: TextStyle(
                                 fontSize: 30,
                                 fontWeight: FontWeight.bold,

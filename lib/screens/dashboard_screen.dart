@@ -404,7 +404,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // Budget Progress Card
+          // Budget Progress Card (Realtime Reactive)
           SliverToBoxAdapter(
             child: StreamBuilder<List<BudgetModel>>(
               stream: _budgetService.getUserBudgets(userId),
@@ -416,8 +416,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final budgets = budgetSnapshot.data!;
                 final activeBudget = budgets.first;
 
-                return FutureBuilder<double>(
-                  future: _budgetService.getCurrentSpending(
+                return StreamBuilder<double>(
+                  stream: _budgetService.watchCurrentSpending(
                     userId,
                     activeBudget.period,
                     category: activeBudget.category,
@@ -439,7 +439,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // Tren Mingguan Section
+          // Analisis & Aktualisasi Keuangan Section
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
@@ -450,7 +450,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Tren Pengeluaran 7 Hari',
+                        'Analisis Keuangan',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
@@ -475,12 +475,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 10),
                   StreamBuilder<List<TransactionModel>>(
-                    stream: _transactionService.getLast7DaysTransactions(userId),
-                    builder: (context, snapshot) {
-                      final transactions = snapshot.data ?? [];
-                      return ChartWidget(
-                        transactions: transactions,
-                        isWeekly: true,
+                    stream: _transactionService.getMonthlyTransactions(
+                      userId,
+                      DateTime.now().year,
+                      DateTime.now().month,
+                    ),
+                    builder: (context, monthlySnapshot) {
+                      return StreamBuilder<List<TransactionModel>>(
+                        stream: _transactionService.getLast7DaysTransactions(userId),
+                        builder: (context, weeklySnapshot) {
+                          final monthlyList = monthlySnapshot.data ?? [];
+                          final weeklyList = weeklySnapshot.data ?? [];
+                          return ChartWidget(
+                            monthlyTransactions: monthlyList,
+                            weeklyTransactions: weeklyList,
+                          );
+                        },
                       );
                     },
                   ),

@@ -12,6 +12,7 @@ import '../services/ocr_service.dart';
 import '../widgets/searchable_chip_picker.dart';
 import '../widgets/voice_input_modal.dart';
 import '../utils/constants.dart';
+import '../utils/currency_formatter.dart';
 import 'category_screen.dart';
 
 class AddTransactionScreen extends StatefulWidget {
@@ -62,7 +63,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     if (widget.transaction != null) {
       _titleController.text = widget.transaction!.title;
-      _amountController.text = widget.transaction!.amount.toStringAsFixed(0);
+      _amountController.text = CurrencyFormatHelper.format(widget.transaction!.amount);
       _descriptionController.text = widget.transaction!.description;
       _selectedType = widget.transaction!.type;
       _selectedCategory = widget.transaction!.category;
@@ -70,12 +71,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _selectedWalletId = widget.transaction!.walletId;
       _selectedWalletName = widget.transaction!.walletName;
     } else {
-      if (widget.prefilledTitle != null) _titleController.text = widget.prefilledTitle!;
+      if (widget.prefilledTitle != null) {
+        _titleController.text = widget.prefilledTitle!;
+      } else {
+        _titleController.text = _selectedCategory;
+      }
       if (widget.prefilledAmount != null && widget.prefilledAmount! > 0) {
-        _amountController.text = widget.prefilledAmount!.toStringAsFixed(0);
+        _amountController.text = CurrencyFormatHelper.format(widget.prefilledAmount!);
       }
       if (widget.prefilledType != null) _selectedType = widget.prefilledType!;
-      if (widget.prefilledCategory != null) _selectedCategory = widget.prefilledCategory!;
+      if (widget.prefilledCategory != null) {
+        _selectedCategory = widget.prefilledCategory!;
+        if (widget.prefilledTitle == null) {
+          _titleController.text = widget.prefilledCategory!;
+        }
+      }
       if (widget.prefilledWalletId != null) _selectedWalletId = widget.prefilledWalletId!;
     }
   }
@@ -116,9 +126,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   void _addQuickAmount(double value) {
     HapticFeedback.selectionClick();
-    final current = double.tryParse(_amountController.text.replaceAll('.', '')) ?? 0;
+    final current = CurrencyFormatHelper.parse(_amountController.text);
     final updated = current + value;
-    _amountController.text = updated.toStringAsFixed(0);
+    _amountController.text = CurrencyFormatHelper.format(updated);
     setState(() {});
   }
 
@@ -157,7 +167,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
 
     if (picked != null && mounted) {
-      setState(() => _selectedCategory = picked);
+      setState(() {
+        _selectedCategory = picked;
+        _titleController.text = picked;
+      });
     }
   }
 
@@ -275,7 +288,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             _titleController.text = parsed.merchantName!;
           }
           if (parsed.totalAmount != null && parsed.totalAmount! > 0) {
-            _amountController.text = parsed.totalAmount!.toStringAsFixed(0);
+            _amountController.text = CurrencyFormatHelper.format(parsed.totalAmount!);
           }
           if (parsed.date != null) {
             _selectedDate = parsed.date!;
@@ -311,8 +324,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Future<void> _saveTransaction() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final cleanAmount = _amountController.text.replaceAll('.', '').trim();
-    final amount = double.tryParse(cleanAmount) ?? 0;
+    final amount = CurrencyFormatHelper.parse(_amountController.text);
     if (amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Jumlah nominal harus lebih dari 0')),
@@ -528,6 +540,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           child: TextFormField(
                             controller: _amountController,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              CurrencyInputFormatter(),
+                            ],
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.w800,
@@ -545,8 +561,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             ),
                             validator: (val) {
                               if (val == null || val.trim().isEmpty) return 'Masukkan nominal';
-                              final amount = double.tryParse(val.replaceAll('.', ''));
-                              if (amount == null || amount <= 0) return 'Nominal harus > 0';
+                              final amount = CurrencyFormatHelper.parse(val);
+                              if (amount <= 0) return 'Nominal harus > 0';
                               return null;
                             },
                           ),
@@ -646,7 +662,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               return GestureDetector(
                                 onTap: () {
                                   HapticFeedback.selectionClick();
-                                  setState(() => _selectedCategory = cat);
+                                  setState(() {
+                                    _selectedCategory = cat;
+                                    _titleController.text = cat;
+                                  });
                                 },
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
@@ -937,7 +956,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
-        setState(() => _selectedType = type);
+        if (_selectedType != type) {
+          final oldCat = _selectedCategory;
+          final newDefaultCat = type == TransactionType.income ? 'Gaji' : 'Makanan';
+          setState(() {
+            _selectedType = type;
+            _selectedCategory = newDefaultCat;
+            if (_titleController.text.isEmpty || _titleController.text == oldCat) {
+              _titleController.text = newDefaultCat;
+            }
+          });
+        }
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
